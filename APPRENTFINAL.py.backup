@@ -8,7 +8,7 @@ import sqlite3
 import os
 # API Data Integration
 try:
-    from api_data_fetcher import DataEnricher
+    from api_data_fetcher import DataEnricher, display_economic_dashboard
     API_AVAILABLE = True
 except ImportError:
     API_AVAILABLE = False
@@ -612,7 +612,14 @@ def main():
                 
                 # Enrich neighborhood data with real API data
                 neighborhoods_df = enricher.enrich_neighborhood_data(neighborhoods_df)
-st.success("✅ Data enriched with real Census & FRED data!")
+                
+                # Get economic indicators
+                indicators = enricher.get_economic_indicators()
+                
+                # Display economic dashboard
+                display_economic_dashboard(indicators)
+                
+                st.success("✅ Data enriched with real Census & FRED data!")
             else:
                 st.warning("⚠️ API keys not configured. Using simulated data only.")
         except Exception as e:
@@ -773,35 +780,7 @@ ORDER BY value_score DESC"""
     with tab2:
         st.header("Top Neighborhoods for Your Budget")
         
-        # ========== CHARTS FIRST (TOP OF PAGE) ==========
-        st.subheader("📊 Visual Overview")
-        
-        # Two visualization columns
-        col1, col2 = st.columns(2)
-        
-        viz = Visualizer()
-        
-        with col1:
-            st.caption("Top 10 California Counties by Average Value Score")
-            fig1 = viz.create_california_overview_chart(all_neighborhoods_df, top_n=10)
-            st.plotly_chart(fig1, use_container_width=True)
-        
-        with col2:
-            st.caption("Top Neighborhoods in Selected County")
-            if selected_county != "All California":
-                if len(budget_filtered_df) > 0:
-                    fig2 = viz.create_county_neighborhoods_chart(budget_filtered_df, selected_county, top_n=5)
-                    st.plotly_chart(fig2, use_container_width=True)
-                else:
-                    st.info(f"No neighborhoods found in {selected_county} within ${budget} budget.")
-            else:
-                st.info("💡 Select a specific county from the sidebar to view top neighborhoods.")
-        
-        st.markdown("---")
-        
-        # ========== KEY METRICS (BELOW CHARTS) ==========
-        st.subheader("📈 Key Statistics")
-        
+        # Key metrics
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -840,9 +819,9 @@ ORDER BY value_score DESC"""
         
         st.markdown("---")
         
-        # ========== NEIGHBORHOOD RECOMMENDATIONS ==========
+        # Display top recommendations
         if len(budget_filtered_df) > 0:
-            st.subheader("🏆 Top Recommendations")
+            st.subheader("Top Recommendations")
         
         top_neighborhoods = budget_filtered_df.head(5)
         
@@ -919,27 +898,101 @@ ORDER BY value_score DESC"""
             
             # Data table
             st.subheader("Detailed Data")
+            display_cols = [
+                'name', 'median_rent', 'median_income', 'affordability',
+                'amenity_score', 'transit_score', 'safety_score',
+                'value_score', 'rank'
+            ]
+            st.dataframe(
+                budget_filtered_df[display_cols].head(10).round(1),
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.warning(f"No neighborhoods found within your criteria. Try adjusting your budget or county filter.")
+    
     # ========== TAB 3: SQL DATABASE ANALYSIS ==========
     with tab3:
         st.header("SQL Database Analysis")
-        st.markdown("**View live database query results**")
+        st.markdown("**View live database queries and statistics**")
         
         st.success("✅ Connected to SQLite Database: `rental_data.db`")
         
         # Current Query Section
-        st.subheader("Current Filter Query")
+        st.subheader("Current Active Query")
         st.code(sql_query_used, language="sql")
         
         col1, col2 = st.columns(2)
         with col1:
             st.metric("Records Returned", len(budget_filtered_df))
         with col2:
-            st.metric("Total Records", f"{len(all_neighborhoods_df)}")
+            st.metric("Database Size", f"{len(all_neighborhoods_df)} total records")
         
         st.markdown("---")
         
-        # Results table
-        st.subheader("Query Results")
-        st.dataframe(budget_filtered_df[['name', 'county', 'median_rent', 'value_score', 'affordability']], 
-                     use_container_width=True, hide_index=True)
+        # Database Query Section
+        st.subheader("SQL Database Queries & Statistics")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**Top 10 Counties Query:**")
+            county_stats_df = db.query_top_counties(top_n=10)
+            st.code("""
+SELECT 
+    county,
+    AVG(value_score) as avg_value_score,
+    AVG(median_rent) as avg_rent,
+    COUNT(*) as neighborhood_count
+FROM neighborhoods
+GROUP BY county
+ORDER BY avg_value_score DESC
+LIMIT 10
+            """, language="sql")
+            st.dataframe(county_stats_df, use_container_width=True, hide_index=True)
+        
+        with col2:
+            if selected_county != "All California":
+                st.markdown(f"**{selected_county} Statistics Query:**")
+                county_detail = db.query_county_stats(selected_county)
+                st.code(f"""
+SELECT 
+    county,
+    COUNT(*) as total_neighborhoods,
+    AVG(median_rent) as avg_rent,
+    AVG(value_score) as avg_value_score,
+    MIN(median_rent) as min_rent,
+    MAX(median_rent) as max_rent
+FROM neighborhoods
+WHERE county = '{selected_county}'
+GROUP BY county
+                """, language="sql")
+                st.dataframe(county_detail, use_container_width=True, hide_index=True)
+            else:
+                st.info("💡 Select a county to view detailed statistics")
+        
+        st.markdown("---")
+        
+        # Sample data from database
+        st.subheader("Sample Database Records")
+        st.caption("First 10 records from the neighborhoods table")
+        sample_query = "SELECT * FROM neighborhoods LIMIT 10"
+        st.code(sample_query, language="sql")
+        sample_df = pd.read_sql_query(sample_query, db.conn)
+        st.dataframe(sample_df, use_container_width=True, hide_index=True)
+    
+    # Close database connection
+    db.close()
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: #6B7280;'>
+        <p>Neighborhood Rental Value Analyzer | SQLite Database-Powered Analysis</p>
+        <p>Data sources: US Census, FRED, OpenStreetMap, City Open Data</p>
+        <p>This tool provides estimates and should be used as a guide. Always verify information independently.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
+if __name__ == "__main__":
+    main()

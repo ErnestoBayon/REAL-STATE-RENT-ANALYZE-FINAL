@@ -207,35 +207,3 @@ class DataEnricher:
             return max(0, 100 - (rent_to_income_ratio - 0.3) * 200)
 
 
-def display_economic_dashboard(indicators: Dict):
-    """Display economic indicators in Streamlit."""
-    st.subheader("📊 Current Economic Indicators")
-    
-    cols = st.columns(3)
-    
-    with cols[0]:
-        if indicators.get('unemployment_rate'):
-            st.metric(
-                "US Unemployment Rate",
-                f"{indicators['unemployment_rate']}%",
-                help="Source: Federal Reserve Economic Data (FRED)"
-            )
-    
-    with cols[1]:
-        if indicators.get('mortgage_rate'):
-            st.metric(
-                "30-Year Mortgage Rate",
-                f"{indicators['mortgage_rate']}%",
-                help="Source: FRED - Freddie Mac Primary Mortgage Market Survey"
-            )
-    
-    with cols[2]:
-        if indicators.get('housing_price_trend'):
-            st.metric(
-                "CA Housing Price Trend (YoY)",
-                f"{indicators['housing_price_trend']:+.2f}%",
-                delta=f"{indicators['housing_price_trend']:.2f}%",
-                help="Year-over-year change in California Housing Price Index"
-            )
-    
-    st.info("💡 **Real-time data** from US Census Bureau & Federal Reserve FRED APIs")
