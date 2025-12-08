@@ -780,7 +780,35 @@ ORDER BY value_score DESC"""
     with tab2:
         st.header("Top Neighborhoods for Your Budget")
         
-        # Key metrics
+        # ========== CHARTS FIRST (TOP OF PAGE) ==========
+        st.subheader("📊 Visual Overview")
+        
+        # Two visualization columns
+        col1, col2 = st.columns(2)
+        
+        viz = Visualizer()
+        
+        with col1:
+            st.caption("Top 10 California Counties by Average Value Score")
+            fig1 = viz.create_california_overview_chart(all_neighborhoods_df, top_n=10)
+            st.plotly_chart(fig1, use_container_width=True)
+        
+        with col2:
+            st.caption("Top Neighborhoods in Selected County")
+            if selected_county != "All California":
+                if len(budget_filtered_df) > 0:
+                    fig2 = viz.create_county_neighborhoods_chart(budget_filtered_df, selected_county, top_n=5)
+                    st.plotly_chart(fig2, use_container_width=True)
+                else:
+                    st.info(f"No neighborhoods found in {selected_county} within ${budget} budget.")
+            else:
+                st.info("💡 Select a specific county from the sidebar to view top neighborhoods.")
+        
+        st.markdown("---")
+        
+        # ========== KEY METRICS (BELOW CHARTS) ==========
+        st.subheader("📈 Key Statistics")
+        
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -819,9 +847,9 @@ ORDER BY value_score DESC"""
         
         st.markdown("---")
         
-        # Display top recommendations
+        # ========== NEIGHBORHOOD RECOMMENDATIONS ==========
         if len(budget_filtered_df) > 0:
-            st.subheader("Top Recommendations")
+            st.subheader("🏆 Top Recommendations")
         
         top_neighborhoods = budget_filtered_df.head(5)
         
@@ -898,19 +926,6 @@ ORDER BY value_score DESC"""
             
             # Data table
             st.subheader("Detailed Data")
-            display_cols = [
-                'name', 'median_rent', 'median_income', 'affordability',
-                'amenity_score', 'transit_score', 'safety_score',
-                'value_score', 'rank'
-            ]
-            st.dataframe(
-                budget_filtered_df[display_cols].head(10).round(1),
-                use_container_width=True,
-                hide_index=True
-            )
-        else:
-            st.warning(f"No neighborhoods found within your criteria. Try adjusting your budget or county filter.")
-    
     # ========== TAB 3: SQL DATABASE ANALYSIS ==========
     with tab3:
         st.header("SQL Database Analysis")
